@@ -4,6 +4,8 @@
 **/build/
 **/.next/
 **/.vite/
+**/vectorstore/
+**/*.sqlite3
 
 # Environment files
 **/.env
