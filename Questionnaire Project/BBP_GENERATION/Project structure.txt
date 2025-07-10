@@ -1,0 +1,13 @@
+bbp-generator/
+├── data/
+│   ├── bbp_docs/                  ← Place 5 input BBP PDFs here
+│   └── qa_input.docx             ← Place Q&A Word doc here
+├── prompts/
+│   ├── persona.txt               ← Paste persona definition
+│   └── trigger_prompt.txt       ← Paste the trigger prompt
+├── outputs/
+│   └── generated_bbp.docx       ← Will be created after run
+├── generate_bbp.py              ← Main script
+├── .env                         ← API keys and config
+├── requirements.txt             ← Dependencies
+└── README.md                    ← (Optional) Project guide

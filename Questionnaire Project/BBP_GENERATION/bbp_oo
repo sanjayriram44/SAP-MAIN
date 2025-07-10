@@ -1,0 +1,117 @@
+import os
+import re
+import traceback
+import logging
+import argparse
+from dotenv import load_dotenv
+from langchain.chains import RetrievalQA
+from langchain_community.document_loaders import Docx2txtLoader, PyMuPDFLoader
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_community.vectorstores import FAISS
+from langchain.prompts import PromptTemplate
+import docx
+
+from core.models import llm_instance, embeddings_instance
+
+# Logger
+logger = logging.getLogger(__name__)
+
+# Load env vars
+load_dotenv(dotenv_path=".env", override=True)
+
+# Parse runtime argument for Q&A docx input
+parser = argparse.ArgumentParser()
+parser.add_argument("--qa_input", required=True, help="Path to user-uploaded Q&A DOCX file")
+args = parser.parse_args()
+QA_PATH = args.qa_input
+
+# Paths
+BBP_DIR = "./data"
+PERSONA_PATH = "./prompts/persona.txt"
+TRIGGER_PROMPT_PATH = "./prompts/trigger_prompt.txt"
+
+# Ensure output folder exists
+os.makedirs("C:/Temp1", exist_ok=True)
+OUTPUT_PATH = "C:/Temp1/generated_bbp.docx"
+
+# Step 1: Load and vectorize BBP reference documents
+bbp_docs = []
+for filename in os.listdir(BBP_DIR):
+    if filename.endswith(".pdf"):
+        loader = PyMuPDFLoader(os.path.join(BBP_DIR, filename))
+        bbp_docs.extend(loader.load())
+    elif filename.endswith(".docx"):
+        loader = Docx2txtLoader(os.path.join(BBP_DIR, filename))
+        bbp_docs.extend(loader.load())
+
+# Chunk BBP documents for RAG
+splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
+chunks = splitter.split_documents(bbp_docs)
+vectorstore = FAISS.from_documents(chunks, embeddings_instance)
+retriever = vectorstore.as_retriever()
+
+# Step 2: Load project-specific Q&A input
+docx_loader = Docx2txtLoader(QA_PATH)
+qa_text = "\n".join([doc.page_content for doc in docx_loader.load()])
+
+# Step 3: Load persona and trigger prompt
+with open(PERSONA_PATH, "r", encoding="utf-8") as f:
+    persona = f.read()
+with open(TRIGGER_PROMPT_PATH, "r", encoding="utf-8") as f:
+    trigger = f.read()
+
+# Step 4: PromptTemplate with 'question' (fixing query issue)
+prompt_template = PromptTemplate(
+    input_variables=["context", "question"],
+    template=f"""{persona}
+
+You are generating a formal SAP Ariba Sourcing BBP.
+
+Instructions:
+- Use knowledge from existing BBPs (below, under 'Context').
+- Adapt the content as per the project-specific requirement (below, under 'QA Input').
+- Write the full BBP in SAP-standard format.
+
+Context:
+{{context}}
+
+QA Input:
+{{question}}
+"""
+)
+
+# Step 5: Generate BBP using LangChain QA Chain
+try:
+    qa_chain = RetrievalQA.from_chain_type(
+        llm=llm_instance,
+        retriever=retriever,
+        return_source_documents=False,
+        input_key="query",  
+        chain_type_kwargs={"prompt": prompt_template}
+    )
+
+    response = qa_chain.invoke({"query": qa_text})
+    content = response["result"]
+    cleaned_text = re.sub(r"[#*`]+", "", content)
+
+    # Step 6: Save result to Word
+    doc = docx.Document()
+    doc.add_heading("SAP Ariba Sourcing Business Blueprint", 0)
+
+    for para in cleaned_text.split("\n\n"):
+        para = para.strip()
+        if not para:
+            continue
+        elif re.match(r"^\d+\. ", para):
+            doc.add_heading(para, level=1)
+        elif para.startswith("- ") or para.startswith("• "):
+            doc.add_paragraph(para.strip("- •"), style="List Bullet")
+        else:
+            doc.add_paragraph(para)
+
+    doc.save(OUTPUT_PATH)
+    print(f"✅ BBP generated and saved to: {OUTPUT_PATH}")
+
+except Exception as e:
+    print("BBP generation failed.")
+    print(traceback.format_exc())

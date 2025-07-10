@@ -1,0 +1,51 @@
+# Node modules
+**/node_modules/
+**/dist/
+**/build/
+**/.next/
+**/.vite/
+
+# Environment files
+**/.env
+**/.env.*
+
+# Python stuff
+**/__pycache__/
+**/*.py[cod]
+**/*.pyo
+**/*.pyd
+**/.Python
+**/*.egg-info/
+**/pip-wheel-metadata/
+**/.venv/
+**/venv/
+**/env/
+**/myenv/
+
+# Jupyter notebooks (if ever added)
+**/.ipynb_checkpoints/
+
+# VS Code settings
+.vscode/
+*.code-workspace
+
+# Logs and outputs
+*.log
+output/
+logs/
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Lock files
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+
+# Coverage reports / test stuff
+coverage/
+*.cover
+*.coverage
+*.py,cover
+htmlcov/

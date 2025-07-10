@@ -1,0 +1,127 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Base colors - Clean white background inspired by Slack/Intercom */
+    --background: 0 0% 100%;
+    --foreground: 240 5% 15%;
+
+    /* Card colors - Subtle elevation */
+    --card: 0 0% 100%;
+    --card-foreground: 240 5% 15%;
+
+    /* Popover colors */
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 5% 15%;
+
+    /* Primary - Inspired by Slack's brand blue */
+    --primary: 260 82% 65%;
+    --primary-foreground: 0 0% 100%;
+    --primary-hover: 260 82% 55%;
+
+    /* Secondary - Soft gray inspired by Intercom */
+    --secondary: 240 5% 96%;
+    --secondary-foreground: 240 5% 25%;
+
+    /* Muted - Light gray backgrounds */
+    --muted: 240 5% 98%;
+    --muted-foreground: 240 4% 46%;
+
+    /* Accent - Subtle highlight color inspired by Headspace */
+    --accent: 30 100% 97%;
+    --accent-foreground: 25 100% 25%;
+
+    /* Success color - Fresh green */
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 100%;
+
+    /* Warning color - Gentle orange */
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
+
+    /* Destructive - Soft red */
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Border and input - Very light gray */
+    --border: 240 6% 90%;
+    --input: 240 6% 90%;
+    --ring: 260 82% 65%;
+
+    /* Radius for modern look */
+    --radius: 8px;
+
+    /* Sidebar colors */
+    --sidebar-background: 240 5% 98%;
+    --sidebar-foreground: 240 5% 25%;
+    --sidebar-primary: 260 82% 65%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 5% 93%;
+    --sidebar-accent-foreground: 240 5% 25%;
+    --sidebar-border: 240 6% 88%;
+    --sidebar-ring: 260 82% 65%;
+
+    /* Modern shadows */
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+
+    /* Modern gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(260 82% 55%) 100%);
+    --gradient-subtle: linear-gradient(135deg, hsl(var(--muted)) 0%, hsl(240 5% 95%) 100%);
+  }
+
+  .dark {
+    --background: 240 5% 6%;
+    --foreground: 240 5% 90%;
+
+    --card: 240 5% 8%;
+    --card-foreground: 240 5% 90%;
+
+    --popover: 240 5% 8%;
+    --popover-foreground: 240 5% 90%;
+
+    --primary: 260 82% 65%;
+    --primary-foreground: 240 5% 6%;
+
+    --secondary: 240 4% 15%;
+    --secondary-foreground: 240 5% 90%;
+
+    --muted: 240 4% 12%;
+    --muted-foreground: 240 4% 60%;
+
+    --accent: 240 4% 15%;
+    --accent-foreground: 240 5% 90%;
+
+    --success: 142 76% 36%;
+    --warning: 38 92% 50%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 240 5% 90%;
+
+    --border: 240 4% 18%;
+    --input: 240 4% 18%;
+    --ring: 260 82% 65%;
+
+    --sidebar-background: 240 5% 6%;
+    --sidebar-foreground: 240 5% 85%;
+    --sidebar-primary: 260 82% 65%;
+    --sidebar-primary-foreground: 240 5% 6%;
+    --sidebar-accent: 240 4% 12%;
+    --sidebar-accent-foreground: 240 5% 85%;
+    --sidebar-border: 240 4% 15%;
+    --sidebar-ring: 260 82% 65%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
