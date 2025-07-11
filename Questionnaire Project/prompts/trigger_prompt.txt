@@ -1,0 +1,1 @@
+Generate a complete SAP Ariba Sourcing BBP for XYZ Company using the uploaded BBPs and question-answer document as reference. populate all standard sections with full content, not just the structure.
