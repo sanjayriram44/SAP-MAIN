@@ -1,7 +1,5 @@
 "use client"
 
-import type React from "react"
-
 import { useEffect, useState } from "react"
 import axios from "axios"
 import { Textarea } from "@/components/ui/textarea"
@@ -31,6 +29,9 @@ export default function LLMInterview() {
   const [isLoadingQuestion, setIsLoadingQuestion] = useState(true)
   const [isUnderstandingExpanded, setIsUnderstandingExpanded] = useState(false)
   const [isRecommendationExpanded, setIsRecommendationExpanded] = useState(false)
+
+  const [bbpContent, setBbpContent] = useState("")
+  const [isLoadingBBP, setIsLoadingBBP] = useState(false)
 
   useEffect(() => {
     const initFlow = async () => {
@@ -69,6 +70,8 @@ export default function LLMInterview() {
         setAllDone(true)
         setStep("summary")
         setProcessUnderstanding(res.data.process_understanding || "")
+        setProcessRecommendation(res.data.process_recommendation || "")
+        setShowRecommendation(true)
       } else {
         setQuestion(res.data.next_question)
         setCurrentSub(res.data.current_subprocess)
@@ -76,6 +79,8 @@ export default function LLMInterview() {
         setIndex((prev) => prev + 1)
         setProgress(Math.round(((index + 1) / total) * 100))
         setProcessUnderstanding(res.data.process_understanding || "")
+        setProcessRecommendation(res.data.process_recommendation || "")
+        setShowRecommendation(true)
       }
     } catch (err) {
       console.error("Failed to submit answer", err)
@@ -102,21 +107,6 @@ export default function LLMInterview() {
     }
   }
 
-  const handleToggleRecommendation = async () => {
-    if (!showRecommendation) {
-      try {
-        setIsLoadingRecommendation(true)
-        const res = await axios.post("http://localhost:8000/generate_process_recommendation")
-        setProcessRecommendation(res.data.process_recommendation)
-      } catch (err) {
-        console.error("Failed to generate recommendation", err)
-      } finally {
-        setIsLoadingRecommendation(false)
-      }
-    }
-    setShowRecommendation(!showRecommendation)
-  }
-
   const handleReviseRecommendation = async () => {
     if (!reviseRecInput.trim()) return
 
@@ -131,6 +121,18 @@ export default function LLMInterview() {
       console.error("Failed to revise recommendation", err)
     } finally {
       setIsLoadingRecommendation(false)
+    }
+  }
+
+  const handleGenerateBBP = async () => {
+    try {
+      setIsLoadingBBP(true)
+      const res = await axios.get("http://localhost:8000/generate_bbp_from_process_analysis")
+      setBbpContent(res.data.bbp_content)
+    } catch (err) {
+      console.error("Failed to generate BBP", err)
+    } finally {
+      setIsLoadingBBP(false)
     }
   }
 
@@ -187,14 +189,29 @@ export default function LLMInterview() {
         {allDone && (
           <div className="space-y-4">
             <h2 className="text-green-700 font-medium">✅ All Subprocesses Complete</h2>
-            <p className="text-sm">You're done. You can now generate recommendations or export the BBP.</p>
+            <p className="text-sm">You’re done. Generate the final BBP document below.</p>
+
+            <Button
+              onClick={handleGenerateBBP}
+              disabled={isLoadingBBP}
+              className="w-full sm:w-auto"
+            >
+              {isLoadingBBP && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {isLoadingBBP ? "Generating BBP..." : "Generate BBP Document"}
+            </Button>
+
+            {bbpContent && (
+              <div className="bg-gray-100 mt-4 p-4 rounded text-sm whitespace-pre-wrap max-h-[400px] overflow-auto">
+                {bbpContent}
+              </div>
+            )}
           </div>
         )}
       </div>
 
       {/* Bottom: Two Panel Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Left: Process Understanding Panel */}
+        {/* Left: Process Understanding */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="font-semibold">Current Process Understanding</h2>
@@ -251,7 +268,7 @@ export default function LLMInterview() {
           </Button>
         </div>
 
-        {/* Right: Recommendation Panel */}
+        {/* Right: Recommendation */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="font-semibold">Recommended Process</h2>
@@ -266,11 +283,7 @@ export default function LLMInterview() {
             </Button>
           </div>
 
-          {!showRecommendation ? (
-            <div className="bg-gray-100 p-3 rounded text-sm min-h-[60px] flex items-center text-muted-foreground">
-              Click "Generate Recommendation" below to create process recommendations.
-            </div>
-          ) : isLoadingRecommendation ? (
+          {isLoadingRecommendation ? (
             <div className="bg-gray-100 p-3 rounded text-sm min-h-[60px] flex items-center gap-2 text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
               Generating recommendations...
@@ -302,13 +315,13 @@ export default function LLMInterview() {
             disabled={isLoadingRecommendation}
           />
           <Button
-            onClick={showRecommendation ? handleReviseRecommendation : handleToggleRecommendation}
-            disabled={showRecommendation ? !reviseRecInput.trim() || isLoadingRecommendation : isLoadingRecommendation}
+            onClick={handleReviseRecommendation}
+            disabled={!reviseRecInput.trim() || isLoadingRecommendation}
             size="sm"
             className="w-full"
           >
             {isLoadingRecommendation && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {showRecommendation ? "Update Recommendation" : "Generate Recommendation"}
+            Update Recommendation
           </Button>
         </div>
       </div>
