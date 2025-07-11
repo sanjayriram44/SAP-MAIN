@@ -4,11 +4,13 @@ from typing import List, Dict
 from fastapi import FastAPI, HTTPException, Body, UploadFile, File, Response
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
+from fastapi.responses import FileResponse
 from docx import Document
 import uvicorn
 from pydantic import BaseModel
 from generate_bbp import generate_bbp_from_process_analysis
-
+from save_conversation import save_conversation_to_excel, save_conversation_to_word
+from save_analysis import save_individual_and_combined_analysis
 from extract_subprocesses import extract_subprocesses
 from vector_utils import build_rag_context
 from generate_questions import generate_suggested_questions
@@ -49,8 +51,6 @@ class AnswerPayload(BaseModel):
 @app.get("/init_subprocess_flow")
 async def init_subprocess_flow():
     try:
-        print("🧠 Initializing subprocess flow...")
-
         subprocesses = extract_subprocesses()
         if not subprocesses:
             raise HTTPException(status_code=404, detail="No subprocesses found")
@@ -58,7 +58,6 @@ async def init_subprocess_flow():
         current_user_choices["subprocess_list"] = subprocesses
         current_user_choices["current_subprocess"] = subprocesses[0]
         current_user_choices["subprocess_states"] = {sp: "incomplete" for sp in subprocesses}
-
         rag_context = build_rag_context()
         current_user_choices["rag_context"] = rag_context
 
@@ -75,7 +74,6 @@ async def init_subprocess_flow():
             "followups": []
         }]
 
-        print("✅ Subprocess initialized:", current_user_choices["current_subprocess"])
         return {
             "current_subprocess": subprocesses[0],
             "index": 1,
@@ -86,14 +84,11 @@ async def init_subprocess_flow():
         }
 
     except Exception as e:
-        print(f"❌ Failed to init subprocess: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/submit_answer")
 async def submit_answer(payload: AnswerPayload):
     answer = payload.answer
-    print(f"[DEBUG] Received answer: {answer}")
-
     try:
         history = current_user_choices.get("conversation_history", [])
         rag_context = current_user_choices["rag_context"]
@@ -103,9 +98,12 @@ async def submit_answer(payload: AnswerPayload):
             raise HTTPException(status_code=400, detail="No conversation history found.")
 
         history[-1]["answer"] = answer
+
+        if "conversation_map" not in current_user_choices:
+            current_user_choices["conversation_map"] = {}
+        current_user_choices["conversation_map"][current_subprocess] = history[-1]
         current_user_choices["subprocess_states"][current_subprocess] = "completed"
 
-        # Auto-update understanding and recommendation
         current_user_choices["current_process_understanding"] = generate_process_understanding(history)
         current_user_choices["current_process_recommendation"] = generate_process_recommendation(history)
 
@@ -115,7 +113,6 @@ async def submit_answer(payload: AnswerPayload):
         )
 
         if all_completed:
-            print("✅ All subprocesses completed.")
             return {
                 "status": "completed_all",
                 "message": "All subprocesses completed.",
@@ -124,7 +121,6 @@ async def submit_answer(payload: AnswerPayload):
                 "all_completed": True
             }
 
-        # Move to next subprocess
         remaining = [
             sp for sp in current_user_choices["subprocess_list"]
             if current_user_choices["subprocess_states"].get(sp) != "completed"
@@ -146,7 +142,6 @@ async def submit_answer(payload: AnswerPayload):
             "followups": []
         }]
 
-        print(f"➡️ Switched to subprocess: {next_subprocess}")
         return {
             "status": "continue",
             "next_question": next_question,
@@ -157,7 +152,6 @@ async def submit_answer(payload: AnswerPayload):
         }
 
     except Exception as e:
-        print(f"❌ Failed to submit answer: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/revise_process_understanding")
@@ -172,11 +166,8 @@ async def revise_process_understanding_endpoint(payload: ProcessUnderstandingFee
             user_input=user_input,
             current_understanding=current_summary
         )
-
         current_user_choices["current_process_understanding"] = revised_summary
-
         return {"updated_process_understanding": revised_summary}
-
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -185,53 +176,86 @@ async def revise_process_recommendation_endpoint(payload: RecommendationFeedback
     try:
         current_rec = current_user_choices.get("current_process_recommendation", "")
         user_input = payload.user_input
-
         if not current_rec:
             raise HTTPException(status_code=400, detail="No recommendation to revise.")
-
         updated_rec = revise_process_recommendation(user_input, current_rec)
         current_user_choices["current_process_recommendation"] = updated_rec
-
         return {"updated_process_recommendation": updated_rec}
-
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @app.get("/generate_bbp_from_process_analysis")
 async def generate_bbp_from_process_analysis_endpoint():
     try:
         process_understanding = current_user_choices.get("current_process_understanding", "")
         process_recommendation = current_user_choices.get("current_process_recommendation", "")
-
         if not process_understanding or not process_recommendation:
-            raise HTTPException(status_code=400, detail="Process understanding or recommendation is missing.")
-
-        # ✅ Corrected function call
+            raise HTTPException(status_code=400, detail="Missing content.")
         bbp_content, image_map = generate_bbp_from_process_analysis(
             process_understanding=process_understanding,
             process_recommendation=process_recommendation
         )
-
-        if not bbp_content:
-            raise HTTPException(status_code=500, detail="Failed to generate BBP document.")
-
-        return {
-            "bbp_content": bbp_content,
-            "image_map": image_map
-        }
+        return {"bbp_content": bbp_content, "image_map": image_map}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"BBP generation failed: {str(e)}")
 
-    
-    
-    
+@app.get("/export_qna_excel")
+async def export_qna_excel():
+    try:
+        qna_map = current_user_choices.get("conversation_map", {})
+        if not qna_map:
+            raise HTTPException(status_code=400, detail="No Q&A data.")
+        for subprocess, entry in qna_map.items():
+            if not entry.get("answer"):
+                continue
+            save_conversation_to_excel(subprocess, entry)
+        return {
+            "status": "excel_export_successful",
+            "excel_path": "output/conversation_log.xlsx",
+            "subprocesses": list(qna_map.keys())
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to export Excel: {str(e)}")
+
+@app.get("/export_qna_word")
+async def export_qna_word():
+    try:
+        qna_map = current_user_choices.get("conversation_map", {})
+        if not qna_map:
+            raise HTTPException(status_code=400, detail="No Q&A data.")
+        save_conversation_to_word(qna_map)
+        return {
+            "status": "word_export_successful",
+            "word_path": "output/qna_combined.docx",
+            "subprocesses": list(qna_map.keys())
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to export Word doc: {str(e)}")
+
+@app.get("/export_process_analysis_docs")
+async def export_process_analysis_docs():
+    try:
+        pu = current_user_choices.get("current_process_understanding", "")
+        pr = current_user_choices.get("current_process_recommendation", "")
+        if not pu and not pr:
+            raise HTTPException(status_code=400, detail="Missing content.")
+        pu_path, pr_path, combined_path = save_individual_and_combined_analysis(pu, pr)
+        return {
+            "status": "export_successful",
+            "files": {
+                "process_understanding": pu_path,
+                "process_recommendation": pr_path,
+                "combined_summary": combined_path
+            }
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to export docs: {str(e)}")
+
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
     save_path = "BBP_Generation/uploads/qa_input.docx"
     with open(save_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
-
     generate_bbp_from_qa()
     return Response(status_code=204)
 
@@ -241,13 +265,13 @@ async def get_bbp_document():
         path = os.path.abspath("BBP_GENERATION/output/generated_bbp.docx")
         if not os.path.exists(path):
             raise HTTPException(status_code=404, detail="BBP document not found")
-
         doc = Document(path)
         full_text = "\n\n".join([para.text for para in doc.paragraphs if para.text.strip()])
         return {"content": full_text}
-
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to read BBP: {str(e)}")
+
+
 
 @app.post("/update_sap_product")
 async def update_sap_product(product: str = Body(...)):

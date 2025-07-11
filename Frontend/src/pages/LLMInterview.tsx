@@ -1,11 +1,16 @@
 "use client"
 
+import type React from "react"
+
 import { useEffect, useState } from "react"
 import axios from "axios"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { Progress } from "@/components/ui/progress"
-import { Loader2, ChevronDown, ChevronUp } from "lucide-react"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Separator } from "@/components/ui/separator"
+import { Loader2, ChevronDown, ChevronUp, FileText, Download, CheckCircle, MessageSquare } from "lucide-react"
 
 type InterviewStep = "main" | "summary"
 
@@ -27,8 +32,14 @@ export default function LLMInterview() {
   const [isLoadingRecommendation, setIsLoadingRecommendation] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isLoadingQuestion, setIsLoadingQuestion] = useState(true)
-  const [isUnderstandingExpanded, setIsUnderstandingExpanded] = useState(false)
-  const [isRecommendationExpanded, setIsRecommendationExpanded] = useState(false)
+
+  // Card-level collapse states
+  const [isUnderstandingCardExpanded, setIsUnderstandingCardExpanded] = useState(true)
+  const [isRecommendationCardExpanded, setIsRecommendationCardExpanded] = useState(true)
+
+  // Text-level collapse states
+  const [isUnderstandingTextExpanded, setIsUnderstandingTextExpanded] = useState(false)
+  const [isRecommendationTextExpanded, setIsRecommendationTextExpanded] = useState(false)
 
   const [bbpContent, setBbpContent] = useState("")
   const [isLoadingBBP, setIsLoadingBBP] = useState(false)
@@ -51,21 +62,16 @@ export default function LLMInterview() {
         setIsLoadingQuestion(false)
       }
     }
-
     initFlow()
   }, [])
 
   const handleSubmit = async () => {
     if (!answer.trim() || isSubmitting) return
-
     try {
       setIsSubmitting(true)
       setIsLoadingUnderstanding(true)
-
-      const res = await axios.post("http://localhost:8000/submit_answer", {
-        answer,
-      })
-
+      setIsLoadingRecommendation(true)
+      const res = await axios.post("http://localhost:8000/submit_answer", { answer })
       if (res.data.all_completed) {
         setAllDone(true)
         setStep("summary")
@@ -86,13 +92,43 @@ export default function LLMInterview() {
       console.error("Failed to submit answer", err)
     } finally {
       setIsLoadingUnderstanding(false)
+      setIsLoadingRecommendation(false)
       setIsSubmitting(false)
+    }
+  }
+
+  const handleDownloadExcel = async () => {
+    try {
+      await axios.get("http://localhost:8000/export_qna_excel")
+      alert("Excel file generated successfully.")
+    } catch (err) {
+      console.error("Failed to download Excel", err)
+      alert("Failed to generate Excel.")
+    }
+  }
+
+  const handleDownloadWord = async () => {
+    try {
+      await axios.get("http://localhost:8000/export_qna_word")
+      alert("Word file generated successfully.")
+    } catch (err) {
+      console.error("Failed to download Word", err)
+      alert("Failed to generate Word documents.")
+    }
+  }
+
+  const handleExportProcessAnalysis = async () => {
+    try {
+      await axios.get("http://localhost:8000/export_process_analysis_docs")
+      alert("Process analysis documents exported successfully.")
+    } catch (err) {
+      console.error("Failed to export process analysis docs", err)
+      alert("Failed to export process analysis documents.")
     }
   }
 
   const handleReviseUnderstanding = async () => {
     if (!reviseInput.trim()) return
-
     try {
       setIsLoadingUnderstanding(true)
       const res = await axios.post("http://localhost:8000/revise_process_understanding", {
@@ -109,7 +145,6 @@ export default function LLMInterview() {
 
   const handleReviseRecommendation = async () => {
     if (!reviseRecInput.trim()) return
-
     try {
       setIsLoadingRecommendation(true)
       const res = await axios.post("http://localhost:8000/revise_process_recommendation", {
@@ -144,185 +179,334 @@ export default function LLMInterview() {
   }
 
   return (
-    <div className="px-6 py-10 max-w-7xl mx-auto space-y-8">
-      {/* Top: Main Interview */}
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-xl font-semibold">
-            Subprocess {index} of {total}
-          </h1>
-          <p className="text-muted-foreground">{currentSub}</p>
-          <Progress value={progress} className="h-2 mt-2" />
-        </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-gray-100">
+      <div className="px-6 py-12 max-w-7xl mx-auto space-y-8">
+        {/* Header Section */}
+        <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
+          <CardHeader className="pb-6">
+            <div className="flex items-center justify-between">
+              <div className="space-y-2">
+                <div className="flex items-center gap-3">
+                  <Badge variant="secondary" className="px-3 py-1 text-sm font-medium">
+                    Step {index} of {total}
+                  </Badge>
+                  <h1 className="text-2xl font-bold text-gray-900">Process Interview</h1>
+                </div>
+                <p className="text-gray-600 font-medium">{currentSub}</p>
+              </div>
+              <div className="text-right">
+                <div className="text-2xl font-bold text-gray-900">{progress}%</div>
+                <div className="text-sm text-gray-500">Complete</div>
+              </div>
+            </div>
+            <div className="mt-4">
+              <Progress value={progress} className="h-3 bg-gray-200" />
+            </div>
+          </CardHeader>
+        </Card>
 
+        {/* Main Content */}
         {step === "main" && !allDone && (
-          <div className="space-y-4">
-            <h2 className="font-medium">Question:</h2>
-            {isLoadingQuestion ? (
-              <div className="flex items-center gap-2 text-muted-foreground py-4">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Generating your question...
+          <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-xl">
+                <MessageSquare className="h-5 w-5 text-purple-600" />
+                Current Question
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {isLoadingQuestion ? (
+                <div className="flex items-center gap-3 text-gray-600 py-8 justify-center">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <span className="text-lg">Generating your question...</span>
+                </div>
+              ) : (
+                <div className="bg-purple-50 border border-purple-200 rounded-lg p-6">
+                  <p className="text-gray-800 leading-relaxed text-lg">{question}</p>
+                </div>
+              )}
+
+              <div className="space-y-4">
+                <Textarea
+                  placeholder="Share your detailed response here..."
+                  value={answer}
+                  onChange={(e) => setAnswer(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  className="min-h-[140px] text-base border-gray-300 focus:border-purple-500 focus:ring-purple-500"
+                  disabled={isSubmitting || isLoadingQuestion}
+                />
+
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <Button
+                    onClick={handleSubmit}
+                    disabled={!answer.trim() || isSubmitting || isLoadingQuestion}
+                    className="bg-purple-600 hover:bg-purple-700 text-white px-8 py-2.5 text-base font-medium"
+                    size="lg"
+                  >
+                    {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    {isSubmitting ? "Processing..." : "Submit Answer"}
+                  </Button>
+
+                  <div className="text-sm text-gray-500 flex items-center">
+                    Press <kbd className="px-2 py-1 bg-gray-100 rounded text-xs">Cmd</kbd> +{" "}
+                    <kbd className="px-2 py-1 bg-gray-100 rounded text-xs">Enter</kbd> to submit
+                  </div>
+                </div>
               </div>
-            ) : (
-              <p className="text-sm leading-relaxed">{question}</p>
-            )}
-            <Textarea
-              placeholder="Your answer..."
-              value={answer}
-              onChange={(e) => setAnswer(e.target.value)}
-              onKeyDown={handleKeyDown}
-              className="min-h-[120px]"
-              disabled={isSubmitting || isLoadingQuestion}
-            />
-            <Button
-              onClick={handleSubmit}
-              disabled={!answer.trim() || isSubmitting || isLoadingQuestion}
-              className="w-full sm:w-auto"
-            >
-              {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isSubmitting ? "Submitting..." : "Submit Answer"}
-            </Button>
-            <p className="text-xs text-muted-foreground">Press Cmd/Ctrl + Enter to submit</p>
-          </div>
+
+              {index > 1 && (
+                <>
+                  <Separator className="my-6" />
+                  <div className="space-y-3">
+                    <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                      <Download className="h-4 w-4" />
+                      Export Options
+                    </h3>
+                    <div className="flex flex-wrap gap-3">
+                      <Button
+                        onClick={handleDownloadExcel}
+                        className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white"
+                      >
+                        <FileText className="h-4 w-4" />
+                        Excel Export
+                      </Button>
+                      <Button
+                        onClick={handleDownloadWord}
+                        className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white"
+                      >
+                        <FileText className="h-4 w-4" />
+                        Word Export
+                      </Button>
+                      <Button
+                        onClick={handleExportProcessAnalysis}
+                        className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white"
+                      >
+                        <FileText className="h-4 w-4" />
+                        Process Analysis
+                      </Button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
         )}
 
+        {/* Completion Section */}
         {allDone && (
-          <div className="space-y-4">
-            <h2 className="text-green-700 font-medium">✅ All Subprocesses Complete</h2>
-            <p className="text-sm">You’re done. Generate the final BBP document below.</p>
+          <Card className="border-0 shadow-lg bg-gradient-to-r from-green-50 to-emerald-50 border-green-200">
+            <CardContent className="pt-6">
+              <div className="text-center space-y-4">
+                <div className="flex justify-center">
+                  <CheckCircle className="h-16 w-16 text-green-600" />
+                </div>
+                <h2 className="text-2xl font-bold text-green-800">All Subprocesses Complete!</h2>
+                <p className="text-green-700 text-lg">You're ready to generate the final BBP document.</p>
 
-            <Button
-              onClick={handleGenerateBBP}
-              disabled={isLoadingBBP}
-              className="w-full sm:w-auto"
-            >
-              {isLoadingBBP && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isLoadingBBP ? "Generating BBP..." : "Generate BBP Document"}
-            </Button>
+                <Button
+                  onClick={handleGenerateBBP}
+                  disabled={isLoadingBBP}
+                  className="bg-green-600 hover:bg-green-700 text-white px-8 py-3 text-lg font-medium"
+                  size="lg"
+                >
+                  {isLoadingBBP && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
+                  {isLoadingBBP ? "Generating BBP..." : "Generate BBP Document"}
+                </Button>
 
-            {bbpContent && (
-              <div className="bg-gray-100 mt-4 p-4 rounded text-sm whitespace-pre-wrap max-h-[400px] overflow-auto">
-                {bbpContent}
+                {bbpContent && (
+                  <Card className="mt-6 bg-white border-green-200">
+                    <CardHeader>
+                      <CardTitle className="text-green-800">Generated BBP Document</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="bg-gray-50 p-4 rounded-lg text-sm whitespace-pre-wrap max-h-[400px] overflow-auto border">
+                        {bbpContent}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
               </div>
-            )}
-          </div>
+            </CardContent>
+          </Card>
         )}
-      </div>
 
-      {/* Bottom: Two Panel Layout */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Left: Process Understanding */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="font-semibold">Current Process Understanding</h2>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsUnderstandingExpanded(!isUnderstandingExpanded)}
-              className="p-1 h-auto"
-              disabled={isLoadingUnderstanding || !processUnderstanding}
-            >
-              {isUnderstandingExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </Button>
-          </div>
-
-          {isLoadingUnderstanding ? (
-            <div className="bg-gray-100 p-3 rounded text-sm min-h-[60px] flex items-center gap-2 text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Analyzing your responses...
-            </div>
-          ) : !processUnderstanding ? (
-            <div className="bg-gray-100 p-3 rounded text-sm min-h-[60px] flex items-center text-muted-foreground">
-              Process understanding will appear here after your first response.
-            </div>
-          ) : (
-            <div className="bg-gray-100 rounded overflow-hidden">
-              <div
-                className={`p-3 text-sm whitespace-pre-wrap transition-all duration-200 ${
-                  isUnderstandingExpanded ? "max-h-none" : "max-h-[120px] overflow-hidden"
-                }`}
-              >
-                {processUnderstanding}
+        {/* Analysis Sections */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Process Understanding */}
+          <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-xl text-gray-900">Current Process Understanding</CardTitle>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="p-2 hover:bg-gray-100 rounded-full"
+                  onClick={() => setIsUnderstandingCardExpanded(!isUnderstandingCardExpanded)}
+                >
+                  {isUnderstandingCardExpanded ? (
+                    <ChevronUp className="h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" />
+                  )}
+                </Button>
               </div>
-              {!isUnderstandingExpanded && processUnderstanding.length > 200 && (
-                <div className="bg-gradient-to-t from-gray-100 to-transparent h-6 -mt-6 relative" />
-              )}
-            </div>
-          )}
+            </CardHeader>
 
-          <Textarea
-            placeholder="Suggest improvements..."
-            value={reviseInput}
-            onChange={(e) => setReviseInput(e.target.value)}
-            className="min-h-[80px]"
-            disabled={isLoadingUnderstanding}
-          />
-          <Button
-            onClick={handleReviseUnderstanding}
-            disabled={!reviseInput.trim() || isLoadingUnderstanding}
-            size="sm"
-            className="w-full"
-          >
-            {isLoadingUnderstanding && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Update Understanding
-          </Button>
-        </div>
+            {isUnderstandingCardExpanded && (
+              <CardContent className="space-y-4">
+                {/* Text Display Section with its own collapse */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium text-gray-700">Understanding Content</h4>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setIsUnderstandingTextExpanded(!isUnderstandingTextExpanded)}
+                      className="p-1 hover:bg-gray-100 rounded-full"
+                      disabled={isLoadingUnderstanding || !processUnderstanding}
+                    >
+                      {isUnderstandingTextExpanded ? (
+                        <ChevronUp className="h-3 w-3" />
+                      ) : (
+                        <ChevronDown className="h-3 w-3" />
+                      )}
+                    </Button>
+                  </div>
 
-        {/* Right: Recommendation */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="font-semibold">Recommended Process</h2>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsRecommendationExpanded(!isRecommendationExpanded)}
-              className="p-1 h-auto"
-              disabled={isLoadingRecommendation || !processRecommendation}
-            >
-              {isRecommendationExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </Button>
-          </div>
+                  {isLoadingUnderstanding ? (
+                    <div className="bg-gray-50 border border-gray-200 p-6 rounded-lg min-h-[120px] flex items-center justify-center gap-3 text-gray-600">
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      <span>Analyzing your responses...</span>
+                    </div>
+                  ) : !processUnderstanding ? (
+                    <div className="bg-gray-50 border border-gray-200 p-6 rounded-lg min-h-[120px] flex items-center justify-center text-gray-500">
+                      Process understanding will appear here after your first response.
+                    </div>
+                  ) : (
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg overflow-hidden">
+                      <div
+                        className={`p-4 text-gray-800 whitespace-pre-wrap transition-all duration-300 ${
+                          isUnderstandingTextExpanded ? "max-h-none" : "max-h-[160px] overflow-hidden"
+                        }`}
+                      >
+                        {processUnderstanding}
+                      </div>
+                      {!isUnderstandingTextExpanded && processUnderstanding.length > 200 && (
+                        <div className="bg-gradient-to-t from-gray-50 to-transparent h-8 -mt-8 relative" />
+                      )}
+                    </div>
+                  )}
+                </div>
 
-          {isLoadingRecommendation ? (
-            <div className="bg-gray-100 p-3 rounded text-sm min-h-[60px] flex items-center gap-2 text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Generating recommendations...
-            </div>
-          ) : !processRecommendation ? (
-            <div className="bg-gray-100 p-3 rounded text-sm min-h-[60px] flex items-center text-muted-foreground">
-              No recommendation available yet.
-            </div>
-          ) : (
-            <div className="bg-gray-100 rounded overflow-hidden">
-              <div
-                className={`p-3 text-sm whitespace-pre-wrap transition-all duration-200 ${
-                  isRecommendationExpanded ? "max-h-none" : "max-h-[120px] overflow-hidden"
-                }`}
-              >
-                {processRecommendation}
+                {/* Revision Section */}
+                <div className="space-y-3">
+                  <Textarea
+                    placeholder="Suggest improvements to the understanding..."
+                    value={reviseInput}
+                    onChange={(e) => setReviseInput(e.target.value)}
+                    className="min-h-[100px] border-gray-300 focus:border-purple-500"
+                    disabled={isLoadingUnderstanding}
+                  />
+                  <Button
+                    onClick={handleReviseUnderstanding}
+                    disabled={!reviseInput.trim() || isLoadingUnderstanding}
+                    className="w-full bg-purple-600 hover:bg-purple-700"
+                  >
+                    {isLoadingUnderstanding && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Update Understanding
+                  </Button>
+                </div>
+              </CardContent>
+            )}
+          </Card>
+
+          {/* Process Recommendation */}
+          <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-xl text-gray-900">Recommended Process</CardTitle>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="p-2 hover:bg-gray-100 rounded-full"
+                  onClick={() => setIsRecommendationCardExpanded(!isRecommendationCardExpanded)}
+                >
+                  {isRecommendationCardExpanded ? (
+                    <ChevronUp className="h-4 w-4" />
+                  ) : (
+                    <ChevronDown className="h-4 w-4" />
+                  )}
+                </Button>
               </div>
-              {!isRecommendationExpanded && processRecommendation.length > 200 && (
-                <div className="bg-gradient-to-t from-gray-100 to-transparent h-6 -mt-6 relative" />
-              )}
-            </div>
-          )}
+            </CardHeader>
 
-          <Textarea
-            placeholder="Suggest edits to recommendation..."
-            value={reviseRecInput}
-            onChange={(e) => setReviseRecInput(e.target.value)}
-            className="min-h-[80px]"
-            disabled={isLoadingRecommendation}
-          />
-          <Button
-            onClick={handleReviseRecommendation}
-            disabled={!reviseRecInput.trim() || isLoadingRecommendation}
-            size="sm"
-            className="w-full"
-          >
-            {isLoadingRecommendation && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Update Recommendation
-          </Button>
+            {isRecommendationCardExpanded && (
+              <CardContent className="space-y-4">
+                {/* Text Display Section with its own collapse */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium text-gray-700">Recommendation Content</h4>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setIsRecommendationTextExpanded(!isRecommendationTextExpanded)}
+                      className="p-1 hover:bg-gray-100 rounded-full"
+                      disabled={isLoadingRecommendation || !processRecommendation}
+                    >
+                      {isRecommendationTextExpanded ? (
+                        <ChevronUp className="h-3 w-3" />
+                      ) : (
+                        <ChevronDown className="h-3 w-3" />
+                      )}
+                    </Button>
+                  </div>
+
+                  {isLoadingRecommendation ? (
+                    <div className="bg-gray-50 border border-gray-200 p-6 rounded-lg min-h-[120px] flex items-center justify-center gap-3 text-gray-600">
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      <span>Generating recommendations...</span>
+                    </div>
+                  ) : !processRecommendation ? (
+                    <div className="bg-gray-50 border border-gray-200 p-6 rounded-lg min-h-[120px] flex items-center justify-center text-gray-500">
+                      No recommendation available yet.
+                    </div>
+                  ) : (
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg overflow-hidden">
+                      <div
+                        className={`p-4 text-gray-800 whitespace-pre-wrap transition-all duration-300 ${
+                          isRecommendationTextExpanded ? "max-h-none" : "max-h-[160px] overflow-hidden"
+                        }`}
+                      >
+                        {processRecommendation}
+                      </div>
+                      {!isRecommendationTextExpanded && processRecommendation.length > 200 && (
+                        <div className="bg-gradient-to-t from-gray-50 to-transparent h-8 -mt-8 relative" />
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Revision Section */}
+                <div className="space-y-3">
+                  <Textarea
+                    placeholder="Suggest edits to recommendation..."
+                    value={reviseRecInput}
+                    onChange={(e) => setReviseRecInput(e.target.value)}
+                    className="min-h-[100px] border-gray-300 focus:border-purple-500"
+                    disabled={isLoadingRecommendation}
+                  />
+                  <Button
+                    onClick={handleReviseRecommendation}
+                    disabled={!reviseRecInput.trim() || isLoadingRecommendation}
+                    className="w-full bg-purple-600 hover:bg-purple-700"
+                  >
+                    {isLoadingRecommendation && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Update Recommendation
+                  </Button>
+                </div>
+              </CardContent>
+            )}
+          </Card>
         </div>
       </div>
     </div>

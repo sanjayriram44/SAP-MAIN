@@ -19,6 +19,7 @@ current_user_choices = {
     "supply_chain_complexity": "High, Engineer-to-Order, Long-lead Equipment",
     "compliance_risk_governance": "High, Mandatory, Manual, Risk thresholds defined",
     "sustainability_objectives": "Advanced, ESG Included, High Supplier Collaboration",
+    "conversation_map": {},  # <- stores Q&A per subprocess
 
     # Dynamic session state
     "current_subprocess": "",
